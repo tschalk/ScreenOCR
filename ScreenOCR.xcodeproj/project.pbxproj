@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CE53E06F2D906A560069655B /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE53E06E2D906A560069655B /* Carbon.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		CE53E0482D9048A20069655B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		CE53E0362D9048A00069655B /* ScreenOCR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScreenOCR.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE53E0472D9048A20069655B /* ScreenOCRTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScreenOCRTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE53E0512D9048A20069655B /* ScreenOCRUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScreenOCRUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE53E06E2D906A560069655B /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -76,6 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE53E06F2D906A560069655B /* Carbon.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +108,7 @@
 				CE53E0382D9048A00069655B /* ScreenOCR */,
 				CE53E04A2D9048A20069655B /* ScreenOCRTests */,
 				CE53E0542D9048A20069655B /* ScreenOCRUITests */,
+				CE53E06D2D906A560069655B /* Frameworks */,
 				CE53E0372D9048A00069655B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -114,6 +121,14 @@
 				CE53E0512D9048A20069655B /* ScreenOCRUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CE53E06D2D906A560069655B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE53E06E2D906A560069655B /* Carbon.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
