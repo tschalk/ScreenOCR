@@ -1,24 +1,15 @@
-//
-//  ContentView.swift
-//  ScreenOCR
-//
-//  Created by Thomas Schalk on 23.03.25.
-//
-
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        Text("OCR App läuft. Drücke Shift+Cmd+O zum Auswahlbereich")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }
