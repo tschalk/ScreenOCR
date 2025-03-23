@@ -28,6 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
     var selectionWindow: SelectionWindow?
     private var hotkeyRef: EventHotKeyRef?
+    private var localMonitor: Any?
+    private var globalMonitor: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // App ohne Dock-Icon laufen lassen
@@ -37,11 +39,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
                 print("Error requesting notification permission: \(error)")
+                
+                if (error as NSError).domain == UNErrorDomain && (error as NSError).code == 1 {
+                    // Berechtigung für Benachrichtigungen fehlt
+                    DispatchQueue.main.async {
+                        self.showAlert(
+                            title: "Benachrichtigungen deaktiviert",
+                            message: "Bitte aktiviere Benachrichtigungen für diese App in den Systemeinstellungen.",
+                            primaryButtonText: "Systemeinstellungen öffnen",
+                            secondaryButtonText: "Abbrechen"
+                        ) { openSettings in
+                            if openSettings {
+                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
+                            }
+                        }
+                    }
+                }
             }
         }
         
         setupStatusItem()
-        registerHotkey()
+        setupHotkeyMonitoring()
+        
+        // Prüfe Bedienungshilfen-Berechtigung
+        askForAccessibilityPermissionIfNeeded()
     }
     
     func setupStatusItem() {
@@ -55,41 +76,64 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(NSMenuItem(title: "OCR aktivieren (⌘⇧O)", action: #selector(activateOCR), keyEquivalent: ""))
+        menu.addItem(withTitle: "OCR aktivieren (⌘⇧O)", action: #selector(activateOCR), keyEquivalent: "O").keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Beenden", action: #selector(quitApp), keyEquivalent: "q"))
         
         statusItem?.menu = menu
     }
     
-    func registerHotkey() {
-        // Globale Tastenkombination Cmd+Shift+O registrieren
-        let keyID = EventHotKeyID(signature: fourCharCodeFrom("SOCR"), id: 1)
-
-        let keyCode = UInt32(kVK_ANSI_O)
-        let modifiers = UInt32(cmdKey | shiftKey)
+    func setupHotkeyMonitoring() {
+        // Lokalen Monitor für Tastatureingaben einrichten (wenn App im Vordergrund ist)
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.modifierFlags.contains(.command) &&
+               event.modifierFlags.contains(.shift) &&
+               event.keyCode == 31 { // 31 = O key
+                self?.activateOCR()
+                return nil // Event verbrauchen
+            }
+            return event
+        }
         
-        var hotKeyRef: EventHotKeyRef?
-        let registerErr = RegisterEventHotKey(keyCode, modifiers, keyID, GetEventDispatcherTarget(), 0, &hotKeyRef)
+        // Globalen Monitor für Tastatureingaben einrichten (wenn App im Hintergrund ist)
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.modifierFlags.contains(.command) &&
+               event.modifierFlags.contains(.shift) &&
+               event.keyCode == 31 { // 31 = O key
+                self?.activateOCR()
+            }
+        }
+    }
+    
+    func askForAccessibilityPermissionIfNeeded() {
+        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        let trusted = AXIsProcessTrustedWithOptions(options)
         
-        if registerErr == noErr {
-            self.hotkeyRef = hotKeyRef
-            
-            // Event-Handler für Hotkey
-            NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-                if event.modifierFlags.contains(.command) &&
-                   event.modifierFlags.contains(.shift) &&
-                   event.keyCode == UInt16(kVK_ANSI_O) {
-                    self.activateOCR()
+        if !trusted {
+            DispatchQueue.main.async {
+                self.showAlert(
+                    title: "Berechtigung erforderlich",
+                    message: "Bitte aktiviere diese App unter Systemeinstellungen > Datenschutz & Sicherheit > Bedienungshilfen, damit der Hotkey funktioniert.",
+                    primaryButtonText: "Systemeinstellungen öffnen",
+                    secondaryButtonText: "Später"
+                ) { openSettings in
+                    if openSettings {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                    }
                 }
             }
-        } else {
-            print("Fehler beim Registrieren der Tastenkombination: \(registerErr)")
-            // Fallback-Methode für Hotkey-Registrierung
-            let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-            let trusted = AXIsProcessTrustedWithOptions(options)
-            print("App vertrauenswürdig: \(trusted)")
         }
+    }
+    
+    func showAlert(title: String, message: String, primaryButtonText: String, secondaryButtonText: String, completion: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: primaryButtonText)
+        alert.addButton(withTitle: secondaryButtonText)
+        
+        let response = alert.runModal()
+        completion(response == .alertFirstButtonReturn)
     }
     
     @objc func statusItemClicked() {
@@ -98,6 +142,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     @objc func activateOCR() {
+        print("OCR aktiviert")
+        
         // Bestehende Auswahlfenster schließen
         if selectionWindow != nil {
             selectionWindow?.close()
@@ -211,6 +257,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     func showNotification(message: String) {
+        print("Notification: \(message)")
+        
+        // Zuerst versuchen wir es mit UserNotifications
         let content = UNMutableNotificationContent()
         content.title = "Screen OCR"
         content.body = message
@@ -223,14 +272,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("Error showing notification: \(error)")
+                
+                // Fallback: Anzeige eines kleinen Popup-Fensters
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "Screen OCR"
+                    alert.informativeText = message
+                    alert.runModal()
+                }
             }
         }
     }
     
     @objc func quitApp() {
-        // Unregister hotkey
-        if let hotkeyRef = hotkeyRef {
-            UnregisterEventHotKey(hotkeyRef)
+        // Cleanup
+        if let localMonitor = localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+        }
+        
+        if let globalMonitor = globalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
         }
         
         NSApplication.shared.terminate(nil)
