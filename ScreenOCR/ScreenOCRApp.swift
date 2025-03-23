@@ -64,7 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     
     func registerHotkey() {
         // Globale Tastenkombination Cmd+Shift+O registrieren
-        var keyID = EventHotKeyID(signature: fourCharCodeFrom("SOCR"), id: 1)
+        let keyID = EventHotKeyID(signature: fourCharCodeFrom("SOCR"), id: 1)
 
         let keyCode = UInt32(kVK_ANSI_O)
         let modifiers = UInt32(cmdKey | shiftKey)
@@ -98,17 +98,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     @objc func activateOCR() {
-        // Check screen recording permission
-        let screenCaptureAccess = CGPreflightScreenCaptureAccess()
-        if !screenCaptureAccess {
-            let result = CGRequestScreenCaptureAccess()
-            if !result {
-                showNotification(message: "Bitte erlaube den Zugriff auf die Bildschirmaufnahme in den Systemeinstellungen")
-                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-                return
-            }
-        }
-        
         // Bestehende Auswahlfenster schließen
         if selectionWindow != nil {
             selectionWindow?.close()
@@ -124,54 +113,100 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     func performOCR(in rect: NSRect) {
-        // Screenshot des ausgewählten Bereichs erstellen
-        guard let cgImage = CGDisplayCreateImage(CGMainDisplayID(),
-                                                rect: CGRect(x: rect.origin.x,
-                                                            y: rect.origin.y,
-                                                            width: rect.size.width,
-                                                            height: rect.size.height))
-        else {
-            showNotification(message: "Fehler beim Erstellen des Screenshots")
-            return
-        }
-        
-        // OCR auf dem Bild durchführen
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage)
-        let request = VNRecognizeTextRequest { (request, error) in
-            guard let observations = request.results as? [VNRecognizedTextObservation], error == nil else {
-                DispatchQueue.main.async {
-                    self.showNotification(message: "Fehler bei der Texterkennung")
-                }
+        // Create a new process to take screenshot using screencapture command
+        captureUsingExternalCommand(rect: rect) { imagePath in
+            guard let imagePath = imagePath, FileManager.default.fileExists(atPath: imagePath) else {
+                self.showNotification(message: "Fehler beim Erstellen des Screenshots")
                 return
             }
             
-            // Erkannten Text sammeln
-            let recognizedText = observations.compactMap { observation in
-                observation.topCandidates(1).first?.string
-            }.joined(separator: "\n")
+            // Load the captured image
+            guard let nsImage = NSImage(contentsOfFile: imagePath),
+                  let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                self.showNotification(message: "Fehler beim Laden des Screenshots")
+                return
+            }
             
-            DispatchQueue.main.async {
-                if !recognizedText.isEmpty {
-                    // Text in die Zwischenablage kopieren
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(recognizedText, forType: .string)
-                    self.showNotification(message: "Text in die Zwischenablage kopiert")
-                } else {
-                    self.showNotification(message: "Kein Text gefunden")
+            // Delete the temporary file
+            try? FileManager.default.removeItem(atPath: imagePath)
+            
+            // OCR auf dem Bild durchführen
+            let requestHandler = VNImageRequestHandler(cgImage: cgImage)
+            let request = VNRecognizeTextRequest { (request, error) in
+                guard let observations = request.results as? [VNRecognizedTextObservation], error == nil else {
+                    DispatchQueue.main.async {
+                        self.showNotification(message: "Fehler bei der Texterkennung")
+                    }
+                    return
+                }
+                
+                // Erkannten Text sammeln
+                let recognizedText = observations.compactMap { observation in
+                    observation.topCandidates(1).first?.string
+                }.joined(separator: "\n")
+                
+                DispatchQueue.main.async {
+                    if !recognizedText.isEmpty {
+                        // Text in die Zwischenablage kopieren
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(recognizedText, forType: .string)
+                        self.showNotification(message: "Text in die Zwischenablage kopiert")
+                    } else {
+                        self.showNotification(message: "Kein Text gefunden")
+                    }
                 }
             }
+            
+            // OCR-Optionen für deutsche und englische Sprache konfigurieren
+            request.recognitionLanguages = ["de-DE", "en-US"]
+            request.recognitionLevel = .accurate
+            
+            do {
+                try requestHandler.perform([request])
+            } catch {
+                print("Fehler bei der OCR-Verarbeitung: \(error)")
+                self.showNotification(message: "Fehler bei der Texterkennung")
+            }
         }
+    }
+    
+    private func captureUsingExternalCommand(rect: NSRect, completion: @escaping (String?) -> Void) {
+        // Create a temporary file path
+        let tempDir = NSTemporaryDirectory()
+        let tempFilePath = tempDir + UUID().uuidString + ".png"
         
-        // OCR-Optionen für deutsche und englische Sprache konfigurieren
-        request.recognitionLanguages = ["de-DE", "en-US"]
-        request.recognitionLevel = .accurate
+        // Prepare the screencapture command
+        let task = Process()
+        task.launchPath = "/usr/sbin/screencapture"
+        task.arguments = [
+            "-x",                               // No sound
+            "-r",                               // Region capture
+            "-R\(Int(rect.origin.x)),\(Int(rect.origin.y)),\(Int(rect.width)),\(Int(rect.height))",  // Region coordinates
+            tempFilePath                        // Output file
+        ]
         
+        // Set up a pipe to capture output
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        // Launch the process
         do {
-            try requestHandler.perform([request])
+            try task.run()
+            task.waitUntilExit()
+            
+            if task.terminationStatus == 0 {
+                completion(tempFilePath)
+            } else {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("Screencapture failed: \(output)")
+                completion(nil)
+            }
         } catch {
-            print("Fehler bei der OCR-Verarbeitung: \(error)")
-            showNotification(message: "Fehler bei der Texterkennung")
+            print("Failed to launch screencapture: \(error)")
+            completion(nil)
         }
     }
     

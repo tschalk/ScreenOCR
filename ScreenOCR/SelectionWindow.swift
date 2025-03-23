@@ -4,6 +4,7 @@ class SelectionWindow: NSWindow {
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
     private var selectionView: SelectionView!
+    private var localEventMonitor: Any?
     
     var onSelectionComplete: ((NSRect) -> Void)?
     
@@ -28,7 +29,6 @@ class SelectionWindow: NSWindow {
         
         // SelectionView erstellen und als Content View setzen
         selectionView = SelectionView(frame: screenFrame)
-        selectionView.window = self
         self.contentView = selectionView
         
         // Event-Monitoring starten
@@ -37,7 +37,7 @@ class SelectionWindow: NSWindow {
     
     private func startEventMonitoring() {
         // Lokalen Event-Monitor für Mausklicks und Tastenanschläge einrichten
-        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .keyDown, .mouseMoved]) { [weak self] event in
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .keyDown, .mouseMoved]) { [weak self] event in
             guard let self = self else { return event }
             
             switch event.type {
@@ -109,6 +109,11 @@ class SelectionWindow: NSWindow {
     
     override func close() {
         // Event-Monitoring beenden
+        if let localEventMonitor = localEventMonitor {
+            NSEvent.removeMonitor(localEventMonitor)
+            self.localEventMonitor = nil
+        }
+        
         super.close()
         NSCursor.arrow.set()
     }
