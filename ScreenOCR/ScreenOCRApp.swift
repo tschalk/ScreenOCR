@@ -11,6 +11,7 @@ import Vision
 import Carbon
 import Foundation
 import AppKit
+import UserNotifications
 
 @main
 struct ScreenOCRApp: App {
@@ -31,6 +32,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // App ohne Dock-Icon laufen lassen
         NSApp.setActivationPolicy(.accessory)
+        
+        // Request notification permissions
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error = error {
+                print("Error requesting notification permission: \(error)")
+            }
+        }
         
         setupStatusItem()
         registerHotkey()
@@ -56,8 +64,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     
     func registerHotkey() {
         // Globale Tastenkombination Cmd+Shift+O registrieren
-        var keyID = EventHotKeyID(signature: OSType(fourCharCodeFrom: "SOCR"), id: 1)
-        
+        var keyID = EventHotKeyID(signature: fourCharCodeFrom("SOCR"), id: 1)
+
         let keyCode = UInt32(kVK_ANSI_O)
         let modifiers = UInt32(cmdKey | shiftKey)
         
@@ -90,6 +98,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     @objc func activateOCR() {
+        // Check screen recording permission
+        let screenCaptureAccess = CGPreflightScreenCaptureAccess()
+        if !screenCaptureAccess {
+            let result = CGRequestScreenCaptureAccess()
+            if !result {
+                showNotification(message: "Bitte erlaube den Zugriff auf die Bildschirmaufnahme in den Systemeinstellungen")
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+                return
+            }
+        }
+        
         // Bestehende Auswahlfenster schließen
         if selectionWindow != nil {
             selectionWindow?.close()
@@ -157,11 +176,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     
     func showNotification(message: String) {
-        let notification = NSUserNotification()
-        notification.title = "Screen OCR"
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
+        let content = UNMutableNotificationContent()
+        content.title = "Screen OCR"
+        content.body = message
+        content.sound = UNNotificationSound.default
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString,
+                                           content: content,
+                                           trigger: nil)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error showing notification: \(error)")
+            }
+        }
     }
     
     @objc func quitApp() {
