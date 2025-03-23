@@ -34,33 +34,9 @@
 		CE53E06E2D906A560069655B /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CE53E06A2D9049B90069655B /* Exceptions for "ScreenOCR" folder in "ScreenOCR" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				project.pbxproj,
-			);
-			target = CE53E0352D9048A00069655B /* ScreenOCR */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		CE53E06B2D9049B90069655B /* Exceptions for "ScreenOCR" folder in "Compile Sources" phase from "ScreenOCR" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = CE53E0322D9048A00069655B /* Sources */;
-			membershipExceptions = (
-				project.pbxproj,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE53E0382D9048A00069655B /* ScreenOCR */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				CE53E06A2D9049B90069655B /* Exceptions for "ScreenOCR" folder in "ScreenOCR" target */,
-				CE53E06B2D9049B90069655B /* Exceptions for "ScreenOCR" folder in "Compile Sources" phase from "ScreenOCR" target */,
-			);
 			path = ScreenOCR;
 			sourceTree = "<group>";
 		};
